@@ -18,19 +18,28 @@ const CODESPACE = process.env.CODESPACE_NAME;
 const FRONTEND_ORIGIN = CODESPACE
   ? `https://${CODESPACE}-5173.app.github.dev`
   : process.env.VITE_API_URL || "http://localhost:5173";
+const CODESPACE_FRONTEND_PATTERN = /^https:\/\/.+-5173\.app\.github\.dev$/;
+
+// API base URL for Codespaces or localhost
+const API_BASE = CODESPACE ? `https://${CODESPACE}-8000.app.github.dev` : `http://localhost:${PORT}`;
 
 app.use(
   cors({
     origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
-      // allow requests from known frontend origin or when origin is undefined (tools)
-      if (!origin || origin === FRONTEND_ORIGIN) return cb(null, true);
+      if (!origin) return cb(null, true);
+      if (origin === FRONTEND_ORIGIN) return cb(null, true);
+      if (CODESPACE_FRONTEND_PATTERN.test(origin)) return cb(null, true);
+      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
+      if (/^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) return cb(null, true);
       return cb(new Error("Not allowed by CORS"));
     },
   })
 );
 
 app.get("/", (req, res) =>
-  res.send(`OctoFit Tracker API running. Frontend dev server: ${FRONTEND_ORIGIN}`)
+  res.send(
+    `OctoFit Tracker API running. Frontend dev server: ${FRONTEND_ORIGIN}. API base: ${API_BASE}`
+  )
 );
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
@@ -47,7 +56,8 @@ mongoose
   .then(() => {
     console.log("Connected to MongoDB");
     console.log(`Frontend origin allowed: ${FRONTEND_ORIGIN}`);
-    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+    console.log(`API base URL: ${API_BASE}`);
+    app.listen(PORT, "0.0.0.0", () => console.log(`Server listening on port ${PORT}`));
   })
   .catch((err) => {
     console.error("MongoDB connection error:", err);
